@@ -4,7 +4,7 @@
 
 \title{Preregistering A Project Evaluating Social Media Risk Communication for Vaccine Safety}
 \author{David Manheim, Anat Gesser-Adelsburg}
-\date{March 2019}
+\date{May 2019}
 
 \begin{document}
 
@@ -98,7 +98,6 @@ Twitter unfortunately restricts access to its data for academic purposes. \cite{
 
 Note that the described data collection is permitted under Twitter's policies. Tracking these groups and individuals should be allowed given that neither self-identified anti-vaccine groups nor health experts should be considered "sensitive groups and organizations." As noted below, any links between twitter and off-twitter data will be solely on the basis of claimed affiliations, and will be used only to identify whether someone is a health expert at a university, a national or international organization, or a government agency. The data will also not be used to "derive or infer potentially sensitive characteristics".
 
-
 \subsubsection{Data Gathering and Ethics}
 All data collection was done using the public Twitter API, and all data is accessible to the public via twitter's web site, as well as to developers via the API. All tweets that were accessed and analyzed are available publicly, and other than the World Health Organization itself, no users are explicitly identified in the discussion. The dataset used has no identification other than the data which was voluntarily published publicaly by twitter users. Other than users explicitly noting their affiliations and organizations that self-identified in the dataset, these were not further tied to non-twitter identities.
 
@@ -114,7 +113,7 @@ In addition to these accounts, accounts involved in anti-vaccine propaganda may 
 
 \subsection{Tweet and Discussion Corpus Extraction}
 
-For each health education account, the list of tweets sent \textit{(TENTATIVELY) between 1/1/2018 and 1/1/2019} will be extracted. Any tweet which mentions any of the vaccine-relevant keywords or hashtags listed below will be considered a relevant tweet for the corpus. The discussions involving these tweets will then be extracted. (For example, if a tweet from an expert replies to another tweet stating that, "MMR vaccines do not contain mercury"\footnote{They do not and never have done so\url{https://www.cdc.gov/vaccinesafety/concerns/thimerosal/index.html}.}, we would retrieve not only replies to the expert's tweet, and further tweets in the thread, but also the tweet to which it replied, along with replies and tweets in that conversation.) Note that this is intended to be a very inclusive list, and is likely to include many false-positives. This ensures fewer tweets are accidentally excluded, which is critical for ensuring relevant conversations are captured.
+For each health education account, the list of tweets sent between 1/1/2018 and 1/1/2019 will be extracted. Any tweet which mentions any of the vaccine-relevant keywords or hashtags listed below will be considered a relevant tweet for the corpus. The discussions involving these tweets will then be extracted. (For example, if a tweet from an expert replies to another tweet stating that, "MMR vaccines do not contain mercury"\footnote{They do not and never have done so\url{https://www.cdc.gov/vaccinesafety/concerns/thimerosal/index.html}.}, we would retrieve not only replies to the expert's tweet, and further tweets in the thread, but also the tweet to which it replied, along with replies and tweets in that conversation.) Note that this is intended to be a very inclusive list, and is likely to include many false-positives. This ensures fewer tweets are accidentally excluded, which is critical for ensuring relevant conversations are captured.
 
 The health education tweet term list is; Vaccine(s), Immunocompromised, Preventable disease(s), Rumors, Debunk(ed/ing), Expert(s). In addition, the terms MMR and DTaP, refer to specific, often controversial vaccines, and the terms Measles, Mumps, Rubella, Diptheria, Tetanus, Pertussis, and Whooping Cough refer to the diseases prevented.
 
@@ -122,14 +121,19 @@ In these discussions, we expect to find some amount of debate and anti-vaccine p
 
 The accounts involved in questioning safety and promoting anti-vaccine misinformation will be identified in part based on this term list, which may be modified based on review of the data, using the proposed analytical model discussed below.
 
+\subsection{Iterative Retrieval Method}
+Because twitter does not provide information on replies to a given user, the methodology attempts to capture the conversation "upstream" of the tweet, i.e. the tweet to which the health expert is replying. All tweets by the users replied to are retrieved, and any tweets involved in any conversations found will be extracted. For example\footnote{Neither of the twitter users used for this example currently exist.}, if expert "VaccineExpert" replies to a tweet by twitter user "AntiVaxxerMom," all tweets by AntiVaxxerMom will be retrieved. If that account has replied to any other messages in the extant corpus that are flagged as vaccine relevant, those tweets will be included in the corpus. This would include replies to the original conversation, and to other tweets in the corpus. In this way, continued conversation between users is captured, but other conversations that are otherwise unfindable involving those users are discovered as well. In addition, the remaining tweets by these users that were not involved in the conversation will be inspected to see if they are independently vaccine-relevant.
+
+Note that this is an imperfect way to capture conversations. If user "AntiVaxxerTroll" replies to a message in any of these threads, but no other user involved in the conversation replies back to them, this would not be found. Also, because twitter limits timelines to 3,200 tweets, it is likely that especially prolific twitter users will not have the full time-period available.
+
 \subsection{Code for Extraction and Analysis of Data}
-The programming for retrieval and analysis of the data has not yet been written, but will be hosted in a public repository, with the exclusion of the cryptographic tokens and other private information needed to access the data.
+The programming for retrieval and analysis of the data is being written, and is hosted in a public repository, github, with the exclusion of the cryptographic tokens and other private information needed to access the data, as well as the data itself, which twitter's TOS requires be kept private. (The message IDs are not required to be kept private, and will hopefully be shared once the corpus is constructed.)
 
 \section{Metrics, Analysis Plans, and Tentative Hypotheses}
 
 The primary descriptive metrics used to assess account behavior are being developed.
 
-We expect that tweets in the corpus of conversations will be polarized due to the by-default combative nature of twitter interactions and groups\cite{Sunstein2002,Yardi2010}, and the increasing polarization of this debate specifically\cite{Witteman2012} shown in analyses of other platforms like Facebook\cite{Schmidt2018}\footnote{Getting past this polarization is a key goal, per Brunson \cite{Brunson2017}, but this is addressed by considering how risk communication is done, rather than by ignoring the clear current polarization.}. Given this, we expect the at pro- and anti- vaccine participants in the discussion will differ in their use of the key terms mentioned above. Specifically, Pro-vaccine accounts will mention the identified health education terms first in conversations, while anti-vaccine accounts will mention the identified misinformation terms first in discussion. (This hypothesis may be checked based on whether it applies in a manual classification of a subset of accounts.)
+We expect that tweets in the corpus of conversations will be polarized due to the by-default combative nature of twitter interactions and groups\cite{Sunstein2002,Yardi2010}, and the increasing polarization of this debate specifically\cite{Witteman2012} shown in analyses of other platforms like Facebook\cite{Schmidt2018}\footnote{Getting past this polarization is a key goal, per Brunson \cite{Brunson2017}, but this is addressed by considering how risk communication is done, rather than by ignoring the clear current polarization.}. Given this, we expect the at pro- and anti- vaccine participants in the discussion will differ in their use of the key terms mentioned above. Specifically, the hypothesis is that pro-vaccine accounts will mention the identified health education terms first in conversations, while anti-vaccine accounts will mention the identified misinformation terms first in discussion. (This hypothesis may be checked based on whether it applies in a manual classification of a subset of accounts, or based on the manual classification of an external dataset.)
 
 It may be difficult to automatically categorize the participants into pro-and anti-vaccine with high accuracy based purely on terms used, but prior work on this topic will be leveraged, or manual tagging of a selected subset can allow machine learning classification models for to be used. From this subset, features will be extracted. Features are likely to include; links to known (pro- or anti- vaccine) domains, terms from the earlier term list... (Need to think more about this. Perhaps I should chat with Doug Yeung?)
 
