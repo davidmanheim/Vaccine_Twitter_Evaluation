@@ -46,7 +46,7 @@ def GrabFileTweets(Filename, start, end):
 
 
 
-Vaccine_Terms = ['mmr', 'dtap', 'measles', 'mumps', 'rubella', 'diptheria', 'tetanus', 'pertussis', 'whooping cough']
+Vaccine_Terms = ['mmr', 'measles', 'mumps', 'rubella']
 MisInfo_Terms =['autism', 'poison', 'shills', 'pharma', 'mandatory', 'vaers', 'aluminum', 'mercury', 'thimerosal']
 HealthEd_Terms = ['vaccine', 'immunocompromise', 'preventable disease', 'rumors', 'debunk', 'expert']
 All_Terms = Vaccine_Terms + MisInfo_Terms + HealthEd_Terms
@@ -54,6 +54,8 @@ All_Terms = Vaccine_Terms + MisInfo_Terms + HealthEd_Terms
 def RelevantTweet(Tweet,Termlist, DateRange=None):
     """
     Return True/False for relevance.
+
+    (Include quoted tweets in scan.)
 
     Args:
         Tweet: Full tweet structure
@@ -67,7 +69,10 @@ def RelevantTweet(Tweet,Termlist, DateRange=None):
     Raises:
         TypeError: If it gets a tweet not formatted how it expects.
     """
-    TweetText = Tweet["text"].lower() #ignore case.
+    TweetText = Tweet["full_text"].lower() #ignore case. # Changed to full_text now, instead of (previously) truncated.
+
+    if Tweet["is_quote_status"] == True: #Append, since we're just matching terms.
+        TweetText = TweetText + " " + Tweet["quoted_status"]["full_text"].lower()
 
     # From: https://stackoverflow.com/questions/7703865/going-from-twitter-date-to-python-datetime-date
     if DateRange is not None:
@@ -113,18 +118,44 @@ def Pull_Relevant(flist, DateRange, TermList, OutFile):
     return(TweetCount)
 
 def Get_ReplyList(File, SN=False):
+    """
+    Get list of reply / quoted tweets user IDs
+
+    Args:
+        File: Files to pull from
+        SN: If screen names are used in place of IDs (Don't do this - it's a bad idea)
+
+    Returns:
+        list of users whose tweets were replied to / quoted / quoted tweet replies in the tweet
+    """
+    if SN:
+        raise NotImplementedError
     Replied_To = list()
     input_file = open(File, 'r')
     raw_batch = islice(input_file, None)
     for current_line in raw_batch:
         tweet_item = json.loads(current_line)
         if tweet_item["in_reply_to_user_id"] is not None:
-            if SN:
-                Replied_To.append(tweet_item["in_reply_to_screen_name"])
-            else:
-                Replied_To.append(tweet_item["in_reply_to_user_id"])
+            Replied_To.append(tweet_item["in_reply_to_user_id"])
+        if tweet_item["is_quote_status"]:
+            Replied_To.append(tweet_item["quoted_status"]['user']['id'])
+            if tweet_item["quoted_status"]["in_reply_to_user_id"] is not None:
+                Replied_To.append(tweet_item["quoted_status"]["in_reply_to_user_id"])
     return(Replied_To)
 
+def Get_MentionList(File, SN=False):
+    Mentioned = list()
+    input_file = open(File, 'r')
+    raw_batch = islice(input_file, None)
+    for current_line in raw_batch:
+        tweet_item = json.loads(current_line)
+        if tweet_item["user_mentions"] is not None:
+            if SN:
+                raise NotImplementedError
+            else:
+                for user in tweet_item["user_mentions"]:
+                    Mentioned.append(user["id"])
+    return(Mentioned)
 
 def Get_Reply_TweetID_List(File):
     ID_Replied_To = list()
@@ -134,6 +165,9 @@ def Get_Reply_TweetID_List(File):
         tweet_item = json.loads(current_line)
         if tweet_item["in_reply_to_status_id"] is not None:
             ID_Replied_To.append(tweet_item["in_reply_to_status_id"])
+        if tweet_item["is_quote_status"]:
+            if tweet_item["quoted_status"]["in_reply_to_user_id"] is not None:
+                ID_Replied_To.append(tweet_item["quoted_status"]["in_reply_to_status_id"])
     return(ID_Replied_To)
 
 
