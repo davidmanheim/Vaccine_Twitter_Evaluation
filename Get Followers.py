@@ -142,7 +142,7 @@ if __name__ == "__main__":
         else:
             print("Skipping", str(user))
 
-# Special for CDCgov, which has to many followers.
+# Special for CDCgov, which has too many followers.
 # ID = 146569971
 
 # Excluding The Guardian manually: 87818409 (8.4m followers)

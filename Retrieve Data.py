@@ -1,5 +1,6 @@
 __author__ = 'dmanheim'
 
+import os
 import twitter
 import time
 # import oauth2 as oauth
@@ -255,21 +256,21 @@ if __name__ == "__main__":
     print("Adding 2nd degree scanned files to exclusion list.")
     AppendToListFile(To_Scan_File_List, "Updating_Scanned_Userfile_List.json", Unique=True)
 
-    print("Pulling Tweet Threads")
+    # print("Pulling Tweet Threads")
     # Go through User_Tweet_filelist for all tweets that have IDs in the reply or quoted list,
     # or are the replies or quote tweets themselves
 
-    from Tweet_File_Analysis_Functions import Get_Tweets_By_IDList, Scan_Files_For_Thread_Items
+    # from Tweet_File_Analysis_Functions import Get_Tweets_By_IDList, Scan_Files_For_Thread_Items
+    #
+    # for root, dirs, files in os.walk("data"):
+    #     for file in files:
+    #         if file.startswith('Relevant_User_Tweets_Scanned'):
+    #             Relevant_Tweets_From_List_File = "data\\" + file
+    # Thread_Outfile = "Data\Thread_Tweets_Scanned_at_" + str(time.time()) + ".json"
+    # Thread_Item_Count = Scan_Files_For_Thread_Items(Get_Reply_TweetID_List(Relevant_Tweets_From_List_File),
+    #                                                 User_Tweet_filelist, Thread_Outfile)
 
-    for root, dirs, files in os.walk("data"):
-        for file in files:
-            if file.startswith('Relevant_User_Tweets_Scanned'):
-                Relevant_Tweets_From_List_File = "data\\" + file
-    Thread_Outfile = "Data\Thread_Tweets_Scanned_at_" + str(time.time()) + ".json"
-    Thread_Item_Count = Scan_Files_For_Thread_Items(Get_Reply_TweetID_List(Relevant_Tweets_From_List_File),
-                                                    User_Tweet_filelist, Thread_Outfile)
-
-    print(Thread_Item_Count)
+    # print(Thread_Item_Count)
 
 # TODO: check other files to see if any are that parents, and mark those tweets as relevant as well.
 

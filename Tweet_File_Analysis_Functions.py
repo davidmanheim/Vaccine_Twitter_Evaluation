@@ -7,7 +7,8 @@ DateRange = ["Jan 01 00:00:00 2018", "Jan 01 00:00:00 2019"] #Sent during 2018.
 
 Vaccine_Terms = ['mmr', 'measles', 'mumps', 'rubella']
 MisInfo_Terms = ['autism', 'poison', 'shills', 'pharma', 'mandatory', 'vaers', 'aluminum', 'mercury', 'thimerosal']
-HealthEd_Terms = ['vaccine', 'immunocompromise', 'preventable disease', 'rumors', 'debunk', 'expert']
+HealthEd_Terms = ['vaccine', 'immunocompromise', 'preventable disease', 'rumors', 'debunk', 'expert',
+                  "infectious disease", "immunization"]
 All_Terms = Vaccine_Terms + MisInfo_Terms + HealthEd_Terms
 
 
@@ -73,7 +74,7 @@ def Pull_Relevant(flist, DateRange, TermList, OutFile):
         with open(OutFile, 'a') as f: # append the batch, and close file each time.
             for current_line in raw_batch:
                 tweet_item = json.loads(current_line)
-                if RelevantTweet(tweet_item, TermList,DateRange):
+                if RelevantTweet(tweet_item, TermList, DateRange):
                     f.write(json.dumps(tweet_item))
                     f.write('\n')
                     TweetCount=TweetCount+1
@@ -223,31 +224,31 @@ def Get_FileList_Of_JSON_Files(directory, prefix=None):
                     JSONfileList.append(directory + '/' + file)
     return JSONfileList
 
-def Scan_Files_With_Function_Filter(Filelist, Filter, AggNotList=True, Silent=True, **kwargs):
-    # This will return a dict per-file for what the filter returns aggregated over the items in each file.
-    # (Intended to use on lists of files containing 1-tweet-per-line.)
-    Aggregate_Dict = {}
-    for File in Filelist:
-        if not Silent:
-            print("Now processing file", File)
-        if AggNotList:
-            File_Out = {}
-        else:
-            File_Out = []
-        with open(File, 'r') as f:
-            Contents = islice(f, None)
-            for line in Contents:
-                item = json.loads(line)
-                answer = Filter(item, **kwargs)
-                if AggNotList:
-                    if answer in File_Out.keys():
-                        File_Out[answer] = File_Out[answer] + 1
-                    else:
-                        File_Out[answer] = 1
-                else:
-                    File_Out.append(answer)
-            Aggregate_Dict[File] = File_Out.copy()
-    return(Aggregate_Dict)
+# def Scan_Files_With_Function_Filter(Filelist, Filter, AggNotList=True, Silent=True, **kwargs):
+#     # This will return a dict per-file for what the filter returns aggregated over the items in each file.
+#     # (Intended to use on lists of files containing 1-tweet-per-line.)
+#     Aggregate_Dict = {}
+#     for File in Filelist:
+#         if not Silent:
+#             print("Now processing file", File)
+#         if AggNotList:
+#             File_Out = {}
+#         else:
+#             File_Out = []
+#         with open(File, 'r') as f:
+#             Contents = islice(f, None)
+#             for line in Contents:
+#                 item = json.loads(line)
+#                 answer = Filter(item, **kwargs)
+#                 if AggNotList:
+#                     if answer in File_Out.keys():
+#                         File_Out[answer] = File_Out[answer] + 1
+#                     else:
+#                         File_Out[answer] = 1
+#                 else:
+#                     File_Out.append(answer)
+#             Aggregate_Dict[File] = File_Out.copy()
+#     return(Aggregate_Dict)
 
 def Scan_Files_With_Function_Filter(Filelist, Filter, AggNotList=True, Silent=True, Exclude=None, **kwargs):
     # IMPORTANT NOTE: if Exclude is set to anything, it will ALSO exclude Answer == None.
@@ -322,7 +323,7 @@ def Tweet_Type_Filter(tweet, **kwargs):
     else:
         return(1)
 
-def Scan_Files_For_Thread_Items(TweetIDlist, Filelist):
+def Scan_Files_For_Thread_Items(TweetIDlist, Filelist, OutFile):
     if not isinstance(TweetIDlist, list): #Assume it's a filename.
         TweetIDlist=GetListFile(TweetIDlist)
 
@@ -375,6 +376,90 @@ def tweet_is_reply(tweet, DateRange=None, Exclude_RTs=True, **kwargs):
 def get_followers(api=None, screen_name=None):
     users = api.GetFollowerIDs(screen_name=screen_name)  # Should be using User IDs. Fixed.
     return users
+
+def Get_UserIds_From_UserList_File(File):
+    Out_list = []
+    input_file = open(File, 'r')
+    raw_batch = islice(input_file, None)
+    for current_line in raw_batch:  # Per Tweet.
+        user_item = json.loads(current_line)
+        Out_list.append(user_item['id'])
+
+
+def Get_Users_From_Tweet_Files(Filelist, Outfile, UserIDList=None, ExcludeUserIDList=None):
+
+    if isinstance(ExcludeUserIDList,list):
+        Exclude_Users = ExcludeUserIDList.copy()
+    elif isinstance(ExcludeUserIDList,str):
+        Exclude_Users = GetListFile(ExcludeUserIDList)
+    else:
+        Exclude_Users = []
+
+    def add_user(user_item, outfile):
+        userid = user_item['id']
+        if userid not in Exclude_Users:
+            if UserIDList is not None:
+                if userid not in UserIDList:
+                    return 0
+            outfile.write(json.dumps(user_item))
+            outfile.write('\n')
+            Exclude_Users.append(userid)
+            return 1
+        return 0
+
+    count = 0
+
+    with open(Outfile, 'w+') as f:
+        for file in Filelist:
+            print("File:", file)
+            input_file = open(file, 'r')
+            raw_batch = islice(input_file, None)
+            for current_line in raw_batch: # Per Tweet.
+                tweet_item = json.loads(current_line)
+                user_item = tweet_item["user"]
+                count = count + add_user(user_item,f)
+    return(count)
+
+def Classify_User(Filelist, Classes): #Classes is a dict with an entry for (if ints) a userid list,
+    # or (if str) a term list.
+    # Example: Classes={"VSN_Member":[1,2,3,], "Doctor": ["dr.", "doctor"], "OrgTerm": ["National", "Official"]}
+
+    # Output is a dict per userid with: "username", "description", "verified", and one entry per class which is True / False
+    Output = {}
+
+    if isinstance(Filelist, str): # Only 1 file.
+        Filelist = [Filelist]
+
+    for file in Filelist:
+        print("File:", file)
+        input_file = open(file, 'r')
+        raw_batch = islice(input_file, None)
+        for current_line in raw_batch:  # Per Tweet.
+            user_item = json.loads(current_line)
+            Output[user_item["id"]] = {"username": user_item["name"], "description": user_item["description"],
+                                       "verified": user_item["verified"]}
+            if "entities" in user_item.keys():
+                if "url" in user_item["entities"].keys():
+                    Output[user_item["id"]]["Website"] = user_item["entities"]["url"]["urls"][0]["expanded_url"]
+            for This_Class in Classes:
+                if isinstance(Classes[This_Class][0], int):
+                    if user_item["id"] in Classes[This_Class]:
+                        Output[user_item["id"]][This_Class] = True
+                    else:
+                        Output[user_item["id"]][This_Class] = False
+                elif isinstance(Classes[This_Class][0], str):
+                    Output[user_item["id"]][This_Class] = \
+                        any(term.lower() in user_item["description"].lower() for term in Classes[This_Class])
+        return(Output)
+
+def Get_User_Classification_Data():
+    import os as os
+    # Data was pulled / analyzed in User_Extraction_And_Analysis.py
+    if os.path.isfile('data\Classified_Users_One_line.json'):  # I haven't pulled the data yet.
+        if os.path.isfile("data\Classified_Users_With_Wikimedia_One_line.json"):  # I haven't pulled the data yet.
+            with open("data\Classified_Users_With_Wikimedia_One_line.json", 'r') as r:
+                Users_Classified = json.loads(r.readline())
+    return Users_Classified
 
 def Missing_Tweets_from_Thread_File(TweetIDlist,ThreadFile):
     # TODO: Write this.
