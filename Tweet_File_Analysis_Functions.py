@@ -45,11 +45,43 @@ def RelevantTweet(Tweet, Termlist, DateRange=None):
             return False
         elif ts > time.strptime(DateRange[1], '%b %d %H:%M:%S %Y'):
             return False
-    if Termlist is not None:
+    if Termlist is None:
+        return True
+    else:
         for word in Termlist:
             if word.lower() in TweetText:
                 return True
         return False
+
+def TweetByUser(Tweet, Userlist, DateRange=None):
+    """
+    Return True/False for if the tweet is by one of the supplied ids.
+
+    Args:
+        Tweet: Full tweet structure
+        Userlist: Users to check against
+        DateRange: None, or dates [Begin,End] for when the tweet needs to have been sent.
+        Format is '%b %d %H:%M:%S %Y')
+
+    Returns:
+        True/False
+
+    Raises:
+        TypeError: If it gets a tweet not formatted how it expects.
+    """
+    if Tweet['user']['id'] in Userlist:
+        # From: https://stackoverflow.com/questions/7703865/going-from-twitter-date-to-python-datetime-date
+        if DateRange is not None:
+            ts = time.strptime(Tweet['created_at'], '%a %b %d %H:%M:%S +0000 %Y')
+
+            if ts < time.strptime(DateRange[0], '%b %d %H:%M:%S %Y'):
+                return False
+            elif ts > time.strptime(DateRange[1], '%b %d %H:%M:%S %Y'):
+                return False
+        return True
+    else:
+        return False
+
 
 def Pull_Relevant(flist, DateRange, TermList, OutFile):
     """
@@ -141,7 +173,8 @@ def Get_IDs_From_Users(File):
     input_file = open(File, 'r')
     raw_batch = islice(input_file, None)
     for current_line in raw_batch:
-        return(0) # Unfinished.
+        raise NotImplementedError('Don\'t use Get_IDs_From_Users.')
+        # return 0 # Unfinished.
 
 def ListRepliesIDs(TweetFile, ID_List_Outfile): #List all Tweet IDS that are replies.
     Reply_ids = Get_ReplyList(TweetFile, SN=False)
@@ -211,15 +244,19 @@ def AppendToListFile(Input, File, Unique=False): #Given a file that is a list, a
     print("Appended ", len(Input), "Items to the original ", orig_len)
 
 
-def Get_FileList_Of_JSON_Files(directory, prefix=None):
+def Get_FileList_Of_JSON_Files(directory, prefix=None, suffix='.json', contains=None):
     import os
     JSONfileList = []
     for root, dirs, files in os.walk(directory):
         for file in files:
-            if file.endswith('.json'):
+            if file.endswith(suffix):
                 if prefix is not None:
                     if file.startswith(prefix):
-                        JSONfileList.append(directory + '/' + file)
+                        if contains is not None:
+                            if contains in file:
+                                JSONfileList.append(directory + '/' + file)
+                        else:
+                            JSONfileList.append(directory + '/' + file)
                 else:
                     JSONfileList.append(directory + '/' + file)
     return JSONfileList
@@ -263,30 +300,36 @@ def Scan_Files_With_Function_Filter(Filelist, Filter, AggNotList=True, Silent=Tr
         File_Out = {}
         with open(File, 'r') as f:
             Contents = islice(f, None)
-            for line in Contents:
-                item = json.loads(line)
-                answer = Filter(item, **kwargs)
-                if answer is not None:
-                    if answer in Exclude:
-                        ExcludeMe = True
-                    else:
-                        ExcludeMe = False
-                elif None in Exclude: #Answer is None, so we check - does it get excluded?
-                        ExcludeMe = True
-                else:
-                    ExcludeMe = False
-                #Now, check if it is excluded, then add it to the list
-                if not ExcludeMe:
-                    if AggNotList:
-                        if answer in File_Out.keys():
-                            File_Out[answer] = File_Out[answer] + 1
+            if Contents is not None:
+                for line in Contents:
+                    # print(line)
+                    if line is not None:
+                        item = json.loads(line)
+                        answer = Filter(item, **kwargs)
+                        if answer is not None:
+                            if Exclude is not None:
+                                if answer in Exclude:
+                                    ExcludeMe = True
+                                else:
+                                    ExcludeMe = False
+                            else:
+                                ExcludeMe = False
+                        elif None in Exclude: #Answer is None, so we check - does it get excluded?
+                                ExcludeMe = True
                         else:
-                            File_Out[answer] = 1
-                    else:
-                        if answer in File_Out.keys():
-                            File_Out[answer].append(item["id"])
-                        else:
-                            File_Out[answer] = [item["id"]]
+                            ExcludeMe = False
+                        #Now, check if it is excluded, then add it to the list
+                        if not ExcludeMe:
+                            if AggNotList:
+                                if answer in File_Out.keys():
+                                    File_Out[answer] = File_Out[answer] + 1
+                                else:
+                                    File_Out[answer] = 1
+                            else:
+                                if answer in File_Out.keys():
+                                    File_Out[answer].append(item["id"])
+                                else:
+                                    File_Out[answer] = [item["id"]]
             Aggregate_Dict[File] = File_Out.copy()
     return(Aggregate_Dict)
 
@@ -323,7 +366,7 @@ def Tweet_Type_Filter(tweet, **kwargs):
     else:
         return(1)
 
-def Scan_Files_For_Thread_Items(TweetIDlist, Filelist, OutFile):
+def Scan_Files_For_Thread_Items(TweetIDlist, Filelist, OutFile,IncludeQuoteOrReply=True):
     if not isinstance(TweetIDlist, list): #Assume it's a filename.
         TweetIDlist=GetListFile(TweetIDlist)
 
@@ -340,16 +383,17 @@ def Scan_Files_For_Thread_Items(TweetIDlist, Filelist, OutFile):
                     f.write(json.dumps(tweet_item))
                     f.write('\n')
                     TweetCount = TweetCount + 1
-                elif tweet_item["in_reply_to_status_id"] is not None:
-                    if tweet_item["in_reply_to_status_id"] in TweetIDlist:
-                        f.write(json.dumps(tweet_item))
-                        f.write('\n')
-                        TweetCount = TweetCount + 1
-                elif "quoted_status_id" in tweet_item:
-                    if tweet_item["quoted_status_id"] in TweetIDlist:
-                        f.write(json.dumps(tweet_item))
-                        f.write('\n')
-                        TweetCount = TweetCount + 1
+                elif IncludeQuoteOrReply:
+                    if tweet_item["in_reply_to_status_id"] is not None:
+                        if tweet_item["in_reply_to_status_id"] in TweetIDlist:
+                            f.write(json.dumps(tweet_item))
+                            f.write('\n')
+                            TweetCount = TweetCount + 1
+                    elif "quoted_status_id" in tweet_item:
+                        if tweet_item["quoted_status_id"] in TweetIDlist:
+                            f.write(json.dumps(tweet_item))
+                            f.write('\n')
+                            TweetCount = TweetCount + 1
     return(TweetCount)
 
 def tweet_is_reply(tweet, DateRange=None, Exclude_RTs=True, **kwargs):
@@ -401,7 +445,7 @@ def Get_Users_From_Tweet_Files(Filelist, Outfile, UserIDList=None, ExcludeUserID
             if UserIDList is not None:
                 if userid not in UserIDList:
                     return 0
-            outfile.write(json.dumps(user_item))
+            outfile.write(json.dumps(userid))
             outfile.write('\n')
             Exclude_Users.append(userid)
             return 1
@@ -434,7 +478,7 @@ def Classify_User(Filelist, Classes): #Classes is a dict with an entry for (if i
         print("File:", file)
         input_file = open(file, 'r')
         raw_batch = islice(input_file, None)
-        for current_line in raw_batch:  # Per Tweet.
+        for current_line in raw_batch:  # Per User.
             user_item = json.loads(current_line)
             Output[user_item["id"]] = {"username": user_item["name"], "description": user_item["description"],
                                        "verified": user_item["verified"]}
@@ -451,6 +495,24 @@ def Classify_User(Filelist, Classes): #Classes is a dict with an entry for (if i
                     Output[user_item["id"]][This_Class] = \
                         any(term.lower() in user_item["description"].lower() for term in Classes[This_Class])
         return(Output)
+
+def Classify_UserItem(user_item, Classes):
+    Output = {}
+    Output[user_item["id"]] = {"username": user_item["name"], "description": user_item["description"],
+                               "verified": user_item["verified"]}
+    if "entities" in user_item.keys():
+        if "url" in user_item["entities"].keys():
+            Output[user_item["id"]]["Website"] = user_item["entities"]["url"]["urls"][0]["expanded_url"]
+    for This_Class in Classes:
+        if isinstance(Classes[This_Class][0], int):
+            if user_item["id"] in Classes[This_Class]:
+                Output[user_item["id"]][This_Class] = True
+            else:
+                Output[user_item["id"]][This_Class] = False
+        elif isinstance(Classes[This_Class][0], str):
+            Output[user_item["id"]][This_Class] = \
+                any(term.lower() in user_item["description"].lower() for term in Classes[This_Class])
+    return(Output)
 
 def Get_User_Classification_Data():
     import os as os
