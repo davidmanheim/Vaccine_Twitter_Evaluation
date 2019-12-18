@@ -272,16 +272,13 @@ if __name__ == "__main__":
 
     # print(Thread_Item_Count)
 
+    for file in User_Tweet_filelist:
+        with
 # TODO: check other files to see if any are that parents, and mark those tweets as relevant as well.
-
-
-
-
+# Done in Analysis file.
 
 # TODO:
-
-# TODO:
-
-    # Scan relevant tweet file to get users:
+# Done in Analysis file.
+# Scan relevant tweet file to get users:
 
 # I will need to find replies to and quotes of any tweet in that set in the given time frame. (For that I need IDs.)

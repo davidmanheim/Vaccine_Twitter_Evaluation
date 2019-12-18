@@ -198,7 +198,7 @@ def Pull_Wikidata_Type(URL):
     # I want to check if it is a: Q4830453 Business, Q43229 Organization, Q163740 Nonprofit, etc.
     #['P910'] - Wikimedia category
 
-    # Nice to check: P2002, twitter user name?
+    # Nice to check: P2002, twitter user name? Very rarely available, not reliably the same (orgs have multiple accounts)
 
 
 if False: #Scraps of code to check the data.
@@ -214,41 +214,11 @@ if False: #Scraps of code to check the data.
 
     len([item for item in Users_Classified if Users_Classified[item]['Expert']])
     len([item for item in Users_Classified if Users_Classified[item]['Expert'] and 'Website' in Users_Classified[item].keys() and Users_Classified[item]['Website'] is not None])
-    Check = [Users_Classified[item]['Website'] for item in Users_Classified if Users_Classified[item]['Expert'] and 'Website' in Users_Classified[item].keys() and Users_Classified[item]['Website'] is not None]
-    len([site for site in Check if ".edu" in site or ".ac." in site])
-    len([site for site in Check if ".com" in site or ".co." in site])
-    len([site for site in Check if ".org" in site])
-    len([site for site in Check if ".gov" in site])
-    # This should be a proxy for "personal" sites:
-    len([site for site in Check if "/~" in site or "facebook" in site or "twitter" in site or "linkedin" in site
-         or "about.me" in site or "academia.edu" in site or "people" in site or "profile" in site or "personal" in site
-         or "people" in site or "faculty" in site or "staff" in site or "scholar.google" in site])
-
-
-    # Redo above checks for orgs:
-    Check = [Users_Classified[item]['Website'] for item in Users_Classified if Users_Classified[item]['Organization'] and 'Website' in Users_Classified[item].keys() and Users_Classified[item]['Website'] is not None]
-    print(len([site for site in Check if ".edu" in site or ".ac." in site]))
-    print(len([site for site in Check if ".com" in site or ".co." in site]))
-    print(len([site for site in Check if ".org" in site]))
-    print(len([site for site in Check if ".gov" in site]))
-    print(len([site for site in Check if ".net" in site]))
-    len([site for site in Check if "/~" in site or "linkedin" in site
-         or "about.me" in site or "academia.edu" in site or "people" in site or "profile" in site or "personal" in site
-         or "people" in site or "faculty" in site or "staff" in site or "scholar.google" in site])
-
-    len([item for item in Users_Classified if Users_Classified[item]['Expert'] and Users_Classified[item]['Organization']])
-
-
-    Websites = [Users_Classified[item]['Website'] for item in Users_Classified if 'Website' in Users_Classified[item].keys() and Users_Classified[item]['Website'] is not None]
-
-# Check_Wikidata(Websites[0]) # If so, we assume they are an actual org. (We check this later.)
-# If not, it gives us no info.
 
 #How many are left to do?
 
 len([item for item in Users_Classified if 'Website' in Users_Classified[item].keys() and
      Users_Classified[item]['Website'] is not None and "Wikidata" not in Users_Classified[item].keys()])
-
 
 # Only runs for sites / users not already checked.
 
@@ -308,10 +278,83 @@ with open("data\Classified_Users_With_Wikimedia_One_line.json", 'w+') as r:
 
 with open("data\Classified_Users_With_Wikimedia_One_line.json", 'r') as r:
     Users_Classified = json.loads(r.readline())
+    r.close()
 
 # Rules:
 # Wikimedia IDs are used for news.
 
+def DomainEnding(URL,Ending): #Check if the Domain ends with any of the Endings listed.
+    if type(Ending) == type("string"):
+        Ending=[Ending]
+    for End in Ending:
+        if End[0] != ".":
+            End = "." + End # "org" needs to be ".org"
+        if End[-1] == "." or End[-1] == "/": # Covers ".org.uk" or ".org/" matching ".org"
+            if End in URL:
+                return(True)
+        elif (End+".") in URL: # Covers ".org.uk". "www.com.net" will be wrong, not "dotcom.net", as it starts with "."
+            return(True)
+        elif (End+"/") in URL:
+            return(True)
+        elif URL[(-1*len(End)):]==End: #No trailing slash, but it's the end of the URL
+            return(True)
+    return(False)
+
+DomainEnding("www.aol.com",[".com"])
+
+
+def Infer_Type(URL):
+    if DomainEnding(URL, [".edu", ".ac."]): #.ac by itself is a cTLD.
+        return("Academic")
+    if "/~" in URL or "facebook" in URL or "twitter" in URL or "linkedin" in URL \
+        or "about.me" in URL or "academia.edu" in URL or "people" in URL or "profile" in URL or "personal" in URL \
+        or "people" in URL or "faculty" in URL or "staff" in URL or "scholar.google" in URL:
+        return("Personal")
+    if DomainEnding(URL, [".com", ".co."]):
+        return("Company")
+    if DomainEnding(URL, [".gov", ".mil"]):
+        return("Government")
+    if DomainEnding(URL, [".org", ".net", ".int"]):
+        return("Organization")
+    return("Unknown") #Otherwise
+
+# Now, Classify:
+for user in Users_Classified:
+    if 'Website' in Users_Classified[user].keys() and Users_Classified[user]['Website'] is not None:
+        if "Wikidata_Class" not in Users_Classified[user].keys(): #That takes precedence
+            Users_Classified[user]['Heuristic Class'] = Infer_Type(Users_Classified[user]['Website'])
+
+# Checks:
+len([item for item in Users_Classified if 'Heuristic Class' in Users_Classified[item].keys()]) #34840
+
+len([item for item in Users_Classified if 'Heuristic Class' in Users_Classified[item].keys()
+     and Users_Classified[item]['Heuristic Class']=="Unknown"]) # 9594
+
+Unknowns = [item for item in Users_Classified if 'Heuristic Class' in Users_Classified[item].keys() and
+            Users_Classified[item]['Heuristic Class']=="Unknown"]
+for user in Unknowns[301:325]:
+    print(Users_Classified[user]['Website'])
+    #Most are
+
+len([item for item in Users_Classified if 'Heuristic Class' in Users_Classified[item].keys()
+     and Users_Classified[item]['Heuristic Class']=="Academic"]) # 788 #Academic trumps personal;
+len([item for item in Users_Classified if 'Heuristic Class' in Users_Classified[item].keys()
+     and Users_Classified[item]['Heuristic Class']=="Personal"]) # 2871
+len([item for item in Users_Classified if 'Heuristic Class' in Users_Classified[item].keys()
+     and Users_Classified[item]['Heuristic Class']=="Company"]) # 17083
+len([item for item in Users_Classified if 'Heuristic Class' in Users_Classified[item].keys()
+     and Users_Classified[item]['Heuristic Class']=="Organization"]) # 4051
+len([item for item in Users_Classified if 'Heuristic Class' in Users_Classified[item].keys()
+     and Users_Classified[item]['Heuristic Class']=="Government"]) # 523
+
+
+with open("data\Fully_Classified_Users_One_line.json", 'w+') as r:
+    r.write(json.dumps(Users_Classified))
+    r.close()
+
+with open("data\Fully_Classified_Users_One_line.json", 'r') as r:
+    Users_Classified = json.loads(r.readline())
+    r.close()
 
 # Use BotOrNot / Botometer:
 # Code adapted from https://github.com/IUNetSci/botometer-python
@@ -338,13 +381,13 @@ bom = botometer.Botometer(wait_on_ratelimit=True,
 # for UserID, result in bom.check_accounts_in(Test_Users):
 #    Users_Classified[UserID]['BotOMeter'] = result
 
-def Run_100_More_BotOrNot_Queries():
+def Run_More_BotOrNot_Queries(To_get):
     Users_so_far = 0
-    To_get = [key for key in list(Users_Classified.keys())] # if 'BotOMeter' not in Users_Classified[key].keys()]
-    for UserID, result in bom.check_accounts_in(To_get[0:100]):
+    for UserID, result in bom.check_accounts_in(To_get):
         # print(result)
         if "error" in result.keys():
             Users_Classified[UserID]['BotOMeter'] = -1
+            print(result['error'])
         else:
             Users_Classified[UserID]['BotOMeter'] = result['cap']['english']
             Users_Classified[UserID]['BotOMeter_Scores'] = result
@@ -363,16 +406,22 @@ def Run_100_More_BotOrNot_Queries():
 # ... Ended / Died. Hmmm....?
 # Dies on error (These all seem to be deleted accounts). This was addressed by adding - if "error" in result.keys():
 
+# But there are 76,000 users in Users_Classified. (Why?)
+
 if os.path.isfile("data\Classified_Users_With_BotOrNot_One_line.json"):
     with open("data\Classified_Users_With_BotOrNot_One_line.json", 'r') as r:
         Users_Classified = json.loads(r.readline())
         r.close()
 
-for i in range(1, 121):  # This runs 12,100, which should be everyone.
+To_get = [key for key in list(Users_Classified.keys()) if 'BotOMeter' not in Users_Classified[key].keys()]
+
+for i in range(1, 762):  # This runs 76,200, which should be everyone
     # It will likely need to be killed first - but the data is persistent in the object.
-    # I should write it itermittently!
+    # Write intermittenetly. Looks like this will take a couple weeks to pull all the data.
     print("Set #", i)
-    Run_100_More_BotOrNot_Queries()
+    Subset = To_get[0:100]
+    To_get = To_get[101:]
+    Run_More_BotOrNot_Queries(Subset)
     with open("data\Classified_Users_With_BotOrNot_One_line.json", 'w+') as r:
         r.write(json.dumps(Users_Classified))
         r.close()
@@ -381,27 +430,142 @@ for i in range(1, 121):  # This runs 12,100, which should be everyone.
 # Set #1, 19 at 11:31.
 # Set #1, 99 at 11:39 - 100/9 minutes, 12,000 total, 9*12,000/100 = 1,080 minutes = 18 hours. :((((
 
-Pulled_keys = [key for key in Users_Classified.keys() if 'BotOMeter' in Users_Classified[key].keys()]
-len(Pulled_keys) # 451 at initial testing.
-Users_BotChecked = dict()
-for key in Pulled_keys:
-    Users_BotChecked[key] = Users_Classified[key]
 
-len([item for item in Users_BotChecked if Users_BotChecked[item]['verified']])
+# Analysis Snippets:
+if False:
+    Pulled_keys = [key for key in Users_Classified.keys() if 'BotOMeter_Scores' in Users_Classified[key].keys()]
+    Pulled_keys = [key for key in Pulled_keys if 'cap' in Users_Classified[key]['BotOMeter_Scores'].keys()]
+    print(len(Pulled_keys), " out of ", len(Users_Classified)) # 451 at initial testing.
+    Users_BotChecked = dict()
+    for key in Pulled_keys:
+        Users_BotChecked[key] = Users_Classified[key]
 
-for item in Users_BotChecked:
-    if Users_BotChecked[item]['verified']:
-        print(Users_BotChecked[item])
+    len([item for item in Users_BotChecked if Users_BotChecked[item]['verified']])
 
-for item in Users_BotChecked:
-    if Users_BotChecked[item]['BotOMeter']>0.5:
-        print(item, Users_BotChecked[item])
+    for item in Users_BotChecked:
+        if Users_BotChecked[item]['verified']:
+            print(Users_BotChecked[item])
 
-for item in Users_BotChecked:
-    if Users_BotChecked[item]['BotOMeter'] > 0.5 and Users_BotChecked[item]['verified']:
-        print(item, Users_BotChecked[item])
+    for item in Users_BotChecked:
+        if Users_BotChecked[item]['BotOMeter']>0.5:
+            print(item, Users_BotChecked[item])
+
+    for item in Users_BotChecked:
+        if Users_BotChecked[item]['BotOMeter'] > 0.5 and Users_BotChecked[item]['verified']:
+            print(item, Users_BotChecked[item])
 
 
 
 #I have some weird things here. "Bot" user 16258903 didn't tweet in 2018...
 
+def Redo_100_More_BotOrNot_Queries(): #(When it went offline, the check gives an error, and sets the score to -1.)
+    Users_so_far = 0
+    Recheck = [key for key in list(Users_Classified.keys()) if 'BotOMeter' in Users_Classified[key].keys()]
+    Recheck = [key for key in Recheck if Users_Classified[key]['BotOMeter'] == -1]
+
+    for UserID, result in bom.check_accounts_in(Recheck[0:100]):
+        # print(result)
+        if "error" in result.keys():
+            Users_Classified[UserID]['BotOMeter'] = -1
+            print(result['error'])
+        else:
+            Users_Classified[UserID]['BotOMeter'] = result['cap']['english']
+            Users_Classified[UserID]['BotOMeter_Scores'] = result
+        Users_so_far = Users_so_far + 1
+        if (Users_so_far + 1) % 20 == 0:
+            print("So Far, ", Users_so_far)
+
+
+for i in range(1, 16):  # There were 1,5?? errors, so this should cover it.
+    # It will likely need to be killed first - but the data is persistent in the object.
+    # Write intermittenetly. Looks like this will take a couple weeks to pull all the data.
+    print("Set #", i)
+    Redo_100_More_BotOrNot_Queries()
+    with open("data\Classified_Users_With_BotOrNot_One_line.json", 'w+') as r:
+        r.write(json.dumps(Users_Classified))
+        r.close()
+
+
+############################
+####   Analysis Time!   ####
+############################
+
+# First, look at just VSN Members:
+
+# Sanity Check:
+Badness = 0
+for u in Users_Classified:
+    i = None
+    v = None
+    if int(u) in VSN_Ids:
+        v = True
+    if Users_Classified[u]['VSN']:
+        i=True
+    if i != v:
+        Badness = Badness + 1
+# Badness 0 - it matches, once I realized I needed to convert strings to ints.
+
+VSN_Users_Classified = dict()
+for u in Users_Classified:
+    if int(u) in VSN_Ids:
+        VSN_Users_Classified[u] = Users_Classified[u]
+
+def Dicts_Summary(d, entries=None): #Get counts of all items in each entry, plus the values of dicts specified
+    Summary = dict()
+    for entry in entries:
+        Summary[entry] = dict()
+    for item in d:
+        try:
+            for entry in d[item]:
+                if type(d[item][entry]) == type(False): # Boolean
+                    if entry in Summary:
+                        Summary[entry] = Summary[entry] + d[item][entry]
+                    else:
+                        Summary[entry] = int(d[item][entry])
+                if type(d[item][entry]) == type("String"):
+                    if entry in entries:
+                        if d[item][entry] in Summary[entry]:
+                            Summary[entry][d[item][entry]] = Summary[entry][d[item][entry]] + 1
+                        else:
+                            Summary[entry][d[item][entry]] = 1
+        except (TypeError, NameError):
+            pass
+    return(Summary)
+
+VSN_U_Summary = Dicts_Summary(VSN_Users_Classified, ['Wikidata_Class','Heuristic Class'])
+# {'Wikidata_Class': {'Research Org': 2}, 'Heuristic Class': {'Organization': 15, 'Unknown': 22, 'Academic': 1,
+# 'Government': 3, 'Company': 3}, 'verified': 12, 'VSN': 53, 'Expert': 6, 'Organization': 16, 'HealthEd_Term': 17,
+# 'Wikidata': 6}
+
+
+
+
+All_U_Summary = Dicts_Summary(Users_Classified, ['Wikidata_Class','Heuristic Class'])
+# {'Wikidata_Class': {'Research Org': 63, 'Nonprofit': 109, 'Other Org': 170, 'Data Source': 3, 'Person': 530,
+# 'News': 557, 'Business': 169, 'University': 13}, 'Heuristic Class': {'Organization': 4051, 'Unknown': 9594,
+# 'Personal': 2871, 'Company': 17063, 'Academic': 788, 'Government': 523}, 'verified': 12039, 'VSN': 53, 'Expert': 2251,
+# 'Organization': 8753, 'HealthEd_Term': 1124, 'Wikidata': 2898}
+
+
+Ver_U_Summary = Dicts_Summary({U:Users_Classified[U] for U in Users_Classified if Users_Classified[U]['verified']}, ['Wikidata_Class'])
+#{'Wikidata_Class': {'Research Org': 24, 'Other Org': 85, 'Data Source': 2, 'Person': 316, 'News': 412, 'Business': 106,
+# 'Nonprofit': 56, 'University': 11}, 'verified': 12039, 'VSN': 12, 'Expert': 218, 'Organization': 3462,
+# 'HealthEd_Term': 103, 'Wikidata': 1817}
+
+Dicts_Summary({U:Users_Classified[U] for U in Users_Classified if Users_Classified[U]['Organization']}, ['Wikidata_Class','Heuristic Class'])
+
+
+Dicts_Summary({U:Users_Classified[U] for U in Users_Classified if Users_Classified[U]['Expert']}, ['Wikidata_Class','Heuristic Class'])
+
+Dicts_Summary({U:Users_Classified[U] for U in Users_Classified if not Users_Classified[U]['Expert'] and not Users_Classified[U]['Organization']}, ['Wikidata_Class','Heuristic Class'])
+
+# We now have 3 partial classifications: Keyword, Wikimedia, and Domain.
+# The order used for classification is: Wikimedia, then Keyword, then Domain.
+# (More complex than that, as implemented below. See Methodology.)
+
+#################
+# TO DO
+#################
+
+for u in Users_Classified:
+    if u['']
