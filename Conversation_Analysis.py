@@ -1,5 +1,6 @@
 import json
-import os, time
+import os
+
 import networkx as nx
 
 # Get the data on users, on thread structures, and then scan the full dataset for what fits where, etc.
@@ -19,8 +20,8 @@ VSN_IDs = [Member['id'] for Member in VSN_Peeps] # 54 Users.
 
 # Need to Scan all files for tweets mentioning vaccine keywords.
 # The relevant fileset is:
-from Tweet_File_Analysis_Functions import Scan_Files_With_Function_Filter, Get_FileList_Of_JSON_Files, RelevantTweet,\
-    ListAllTweetIDs, TweetByUser, Scan_Files_For_Thread_Items
+from Tweet_File_Analysis_Functions import Scan_Files_With_Function_Filter, Get_FileList_Of_JSON_Files, RelevantTweet, \
+    TweetByUser, Scan_Files_For_Thread_Items
 List_1 = Get_FileList_Of_JSON_Files(directory='data', prefix='Tweets_by_', contains='back_to_2008')  # From typo in code
 List_2 = Get_FileList_Of_JSON_Files(directory='data', prefix='Tweets_by_', contains='back_to_2018')
 List_3 = Get_FileList_Of_JSON_Files(directory='data', prefix='tweets_By_ID_at_')
@@ -158,9 +159,9 @@ if not os.path.isfile('data/Relevant_Conversations_Forest.gpkl'):# Don't redo it
 #    Can't pickle generators
 
 
-# with open('data/Relevant_Conversations_Forest.gpkl', 'rb') as infile:
-#     Relevant_Conversations_Forest = dill.load(infile)
-#     infile.close()
+with open('data/Relevant_Conversations_Forest.gpkl', 'rb') as infile:
+    Relevant_Conversations_Forest = dill.load(infile)
+    infile.close()
 
 with open('data/Conversations_Forest.gpkl', 'rb') as infile:
     Thread_Forest = dill.load(infile)
@@ -251,7 +252,6 @@ for u in MoreUsers:
         Out = Classify_UserItem(u, User_Classes)
         Users_Classified[u.id] = Out
         Added.append(Out)
-
 
 Susp_Msg = "TwitterError([{'code': 63, 'message': 'User has been suspended.'}])"
 Suspended = [i for i in MoreUsers.keys() if type(MoreUsers[i])==type("a") and MoreUsers[i]==Susp_Msg]
@@ -354,7 +354,7 @@ for i in Bots:
         BotUsers[u.id] = u
     except:
         BotUsers[i] = "Suspended"
-    # ALL are now suspended...
+    # ALL are now suspended... I can't even see their tweets anymore.
 
 MaybeBots = [u for u in Users_Classified if 'BotOMeter' in Users_Classified[u].keys() and Users_Classified[u]['BotOMeter']>.25]
 MaybeBotUsers = dict()
@@ -434,7 +434,7 @@ VSN_CSizes = Tsizes(VSN_Conversations_Forest)
 # 37,587 Total VSN Tweets...
 # Only 1814 Are Conversations.
 # Are 35,773 Singletons? No, that's not right: Many threads have multiple VSN-Member-Tweets.
-# The old extracted data said 111,288 times, but 98,611 Singletons. That's because it didn't date-filter.
+# (The old extracted data said 111,288 times, but 98,611 Singletons. That's because it didn't date-filter.)
 # After Date-filter, we need to find how many VSN-Tweets are not singletons (Quote-tweets or replies).
 
 
@@ -451,7 +451,6 @@ Relevant_Types = Thread_Types(Relevant_Conversations_Forest, Users_Classified)
 # 2 Categories, for now: Unknown vs. Personal (not general public, since they have a web site,) Corporate, Org, etc.
 
 import matplotlib.pyplot as plt
-import numpy
 
 plt.hist(VSN_CSizes['l'])
 width = 1.0
@@ -582,6 +581,7 @@ Relevant_Conv_Classified_Dict = dict()
 Relevant_Conv_Classification_List = list()
 for i in Relevant_Conversations_Forest:
     answer = RST_Classify_Tree(i)
+
     Relevant_Conv_Classification_List.append(answer)
     if answer in Relevant_Conv_Classified_Dict.keys():
         Relevant_Conv_Classified_Dict[answer] = Relevant_Conv_Classified_Dict[answer] + 1
@@ -661,11 +661,178 @@ with open('data/VSN_Conversations_Classifications.gpkl', 'rb') as infile:
 len([u for u in [user for user in Users_Classified if "Heuristic Class" in Users_Classified[user].keys()]
      if type(Users_Classified[user]["Heuristic Class"])==type(True)])
 
+##########################
+# Link the trees back to the original tweet text.
+##########################
+#First, load all the tweets (again.)
+# TWstruct has all tweet IDs and USer IDs - but the trees also have the user IDs.
+
+#The tweets IDs are the node labels.
+# list(VSN_Conversations_Forest[0].nodes())[0]
+
+if not os.path.isfile('data/TWStruct_text.gpkl'):# Don't redo it
+
+    # These aren't the actual userIDs... I think. OR...?
+    tweet_userIDs=dict()
+    UserID_tweets=dict()
+    for entry in TWStruct:
+        tweet_userIDs[entry[0]] = entry[2]
+        tweet_userIDs[entry[1]] = entry[3]
+        if entry[2] in  UserID_tweets:
+            UserID_tweets[entry[2]].append(entry[0])
+        else:
+            UserID_tweets[entry[2]] = list()
+            UserID_tweets[entry[2]].append(entry[0])
+        if entry[3] in  UserID_tweets:
+            UserID_tweets[entry[3]].append(entry[2])
+        else:
+            UserID_tweets[entry[3]] = list()
+            UserID_tweets[entry[3]].append(entry[2])
+
+    # The tweet filenames include the userID, which is nice.
+    # All_Tweet_Files
+
+
+    # Except for all of the pulled replies, 'tweets_By_ID..." which are most of this data. Oh Well. Scan 'em all.
+    from itertools import islice
+    All_TweetIDs = list(tweet_userIDs.keys())
+    Tweet_text_by_ID = dict()
+    File_Containing_by_ID = dict()
+    for file in All_Tweet_Files:
+        with open(file, 'r') as f:
+            Contents = islice(f, None)
+            for line in Contents:
+                item = json.loads(line)
+                if item['id'] in All_TweetIDs:
+                    File_Containing_by_ID[item['id']] = file
+                    Tweet_text_by_ID[item['id']] = item['full_text']
+    print(time.time())
+
+    with open('data/TWStruct_text.gpkl', 'wb') as outfile:
+        dill.dump(Tweet_text_by_ID, outfile)
+        outfile.close()
+
+    with open('data/TWStruct_File_per_ID.gpkl', 'wb') as outfile:
+        dill.dump(File_Containing_by_ID, outfile)
+        outfile.close()
+
+with open('data/TWStruct_text.gpkl', 'rb') as infile:
+    Tweet_text_by_ID = dill.load(infile)
+    infile.close()
+
+with open('data/TWStruct_File_per_ID.gpkl', 'rb') as infile:
+    File_Containing_by_ID = dill.load(infile)
+    infile.close()
+
+from random import v
+
+# How many questions are there?
+Qmark_count = 0
+for key in Tweet_text_by_ID.keys():
+    if "?" in Tweet_text_by_ID[key]:
+        Qmark_count = Qmark_count + 1
+# 46852
+Qweet_count = 0
+Conv_with_Q_count = 0
+missing=0
+for tree in Relevant_Conversations_Forest:
+    has_Q = False
+    for node in tree.nodes:
+        if node in Tweet_text_by_ID:
+            if "?" in Tweet_text_by_ID[node]:
+                has_Q=True
+                Qweet_count = Qweet_count + 1
+        else:
+            missing = missing+1
+    Conv_with_Q_count = Conv_with_Q_count + has_Q
+
+Qweet_count = 0
+Conv_with_Q_count = 0
+missing=0
+for tree in VSN_Conversations_Forest:
+    has_Q = False
+    for node in tree.nodes:
+        if node in Tweet_text_by_ID:
+            if "?" in Tweet_text_by_ID[node]:
+                has_Q=True
+                Qweet_count = Qweet_count + 1
+        else:
+            missing = missing+1
+    Conv_with_Q_count = Conv_with_Q_count + has_Q
+
+# Now, check if questions are answered / who answers them,
+replyfromtypes = dict() # {'Company': 85, 'Unknown': 526, 'VSN': 557, 'Organization': 20, 'Government': 4, 'Academic': 7, None: 3, 'Personal': 23, 'Person': 3, 'Other Org': 1}
+questionbytypes = dict() # {'VSN': 367, 'Company': 210, 'Organization': 50, 'Unknown': 1341, 'Personal': 65, None: 6, 'Person': 4, 'Academic': 4, 'Government': 1, 'Nonprofit': 2}
+
+replycount=0 # 1129
+for tree in VSN_Conversations_Forest:
+    has_Q = False
+    for node in tree.nodes:
+        if node in Tweet_text_by_ID:
+            if "?" in Tweet_text_by_ID[node]:
+                questionbytype = Users_Classified[str(tree.nodes()[node]['user'])]['Heuristic Class']
+                if questionbytype in questionbytypes.keys():
+                    questionbytypes[questionbytype] = questionbytypes[questionbytype] + 1
+                else:
+                    questionbytypes[questionbytype] = 1
+                for reply in tree.predecessors(node):
+                    replycount = replycount + 1
+                    replyfromtype = Users_Classified[str(tree.nodes()[reply]['user'])]['Heuristic Class']
+                    if replyfromtype in replyfromtypes.keys():
+                        replyfromtypes[replyfromtype]=replyfromtypes[replyfromtype]+1
+                    else:
+                        replyfromtypes[replyfromtype]=1
+
+
+
+replyfromtypes = dict() #{'Unknown': 3540, 'Company': 904, 'Organization': 187, 'Academic': 62, 'Personal': 161, None: 10, 'VSN': 115, 'Government': 43, 'Nonprofit': 1, 'Person': 12, 'Research Org': 1, 'Business': 1}
+questionbytypes = dict()
+replycount=0 #5,037
+for tree in Relevant_Conversations_Forest:
+    has_Q = False
+    for node in tree.nodes:
+        if node in Tweet_text_by_ID:
+            if "?" in Tweet_text_by_ID[node]:
+                questionbytype = Users_Classified[str(tree.nodes()[node]['user'])]['Heuristic Class']
+                if questionbytype in questionbytypes.keys():
+                    questionbytypes[questionbytype] = questionbytypes[questionbytype] + 1
+                else:
+                    questionbytypes[questionbytype] = 1
+                for reply in tree.predecessors(node):
+                    replycount = replycount + 1
+                    replyfromtype = Users_Classified[str(tree.nodes()[reply]['user'])]['Heuristic Class']
+                    if replyfromtype in replyfromtypes.keys():
+                        replyfromtypes[replyfromtype]=replyfromtypes[replyfromtype]+1
+                    else:
+                        replyfromtypes[replyfromtype]=1
+
+
+a,b = nx.draw(VSN_Conversations_Forest[0])
+nx.draw_networkx_labels(G, pos, labels)
+
+test_n=nx.relabel_nodes(VSN_Conversations_Forest[0], Tweet_text_by_ID, copy=True)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # For the Sankey Diagram, I need lists of how many in each class are only Orgs+Experts, vs. include the public:
 # The Nested Dict has this info for me...
 
-List_Of_Non_Org_Classes = ['Unknown','None','Personal']
+List_Of_Non_Org_Classes = ['None','Personal'] #,'Unknown']
 
 def Org_Split_Calc(Classified_Dict, ListofClasses): #List of classes is the list of classes that count as non-Org/Expert
     Org_Split_Dict = dict()
@@ -772,7 +939,7 @@ Sankey_InMap.extend([6,7,6,7,6,7,6,7,6,7,6,7,6,7,6,7]) # Destinations for ConvTy
 Sankey_Colormap =[0, 0, 0, 0, 1, 1, 1, 1, 0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1]
 
 fig = Sankey_Diagram(Sankey_Labels,Sankey_OutMap,Sankey_InMap,Sankey_Values,Sankey_Colormap)
-fig.show
+fig.show()
 Sankey_Object = fig.data[0]
 
 ##################################
@@ -908,8 +1075,6 @@ print(VSN_Conv_Tweet_Count)
 
 
 # Now, we extract the user types in each conversation.
-
-
 Relevant_Conversation_User_Summaries = dict()
 Relevant_Conversation_User_Summaries['VSN'] = 0
 Relevant_Conversation_User_Summaries['Expert'] = 0
